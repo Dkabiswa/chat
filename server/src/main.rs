@@ -4,9 +4,11 @@ use std::sync::mpsc;
 use std::thread;
 
 const LOCAL: &str = "127.0.0.1:60000";
-const MSG_SIZE: u8 = 32;
+const MSG_SIZE: usize = 32;
 
-// fn sleep()
+fn sleep() {
+    thread::sleep(std::time::Duration::from_millis(100));
+}
 
 fn main() {
     let server = TcpListener::bind(LOCAL).expect("listener failed to bind");
@@ -25,7 +27,7 @@ fn main() {
 
             thread::spawn(move || {
                 loop {
-                    let mut buff = vec![0, MSG_SIZE];
+                    let mut buff = vec![0; MSG_SIZE];
 
                     match socket.read_exact(&mut buff) {
                         Ok(_) => {
@@ -41,8 +43,23 @@ fn main() {
                             break;
                         }
                     }
+                    sleep()
                 }
             });
         };
+
+        if let Ok(msg) = rx.try_recv() {
+            clients = clients
+                .into_iter()
+                .filter_map(|mut client| {
+                    let mut buff = msg.clone().into_bytes();
+                    buff.resize(MSG_SIZE, 0);
+
+                    client.write_all(&buff).map(|_| client).ok()
+                })
+                .collect::<Vec<_>>();
+        }
+
+        sleep();
     }
 }
