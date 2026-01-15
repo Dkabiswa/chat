@@ -1,6 +1,6 @@
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::TcpStream;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, TryRecvError};
 use std::thread;
 use std::time::Duration;
 
@@ -17,7 +17,7 @@ fn main() {
         .set_nonblocking(true)
         .expect("failed to initialize non-blocking");
 
-    let (tx, _rx) = mpsc::channel::<String>();
+    let (tx, rx) = mpsc::channel::<String>();
 
     thread::spawn(move || {
         loop {
@@ -35,6 +35,16 @@ fn main() {
                     println!("connection with server was severed");
                     break;
                 }
+            }
+            match rx.try_recv() {
+                Ok(msg) => {
+                    let mut buff = msg.clone().into_bytes();
+                    buff.resize(MSG_SIZE, 0);
+                    client.write_all(&buff).expect("writing to socket failed");
+                    println!("message sent {:?}", msg);
+                }
+                Err(TryRecvError::Empty) => (),
+                Err(TryRecvError::Disconnected) => break,
             }
             sleep()
         }
